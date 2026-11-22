@@ -8,7 +8,7 @@ export default function HomeLayout() {
         <Navbar />
       </header>
 
-      <div className="flex-1">
+      <div className="flex flex-1 flex-col">
         <Outlet />
       </div>
 

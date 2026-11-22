@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 
 const NAV_ITEMS = [
   { label: 'Harita', to: '/', end: true },
@@ -6,11 +6,24 @@ const NAV_ITEMS = [
   { label: 'İstatistikler', to: '/statistics', end: false },
 ] as const
 
+function getNavbarBgClass(pathname: string): string {
+  if (pathname === '/') {
+    return 'bg-[#dc2f02]'
+  }
+  if (pathname.startsWith('/weather')) {
+    return 'bg-[#0096c7]'
+  }
+  return 'bg-[#31572c]'
+}
+
 export default function Navbar() {
+  const { pathname } = useLocation()
+  const bgClass = getNavbarBgClass(pathname)
+
   return (
     <nav
       aria-label="Ana navigasyon"
-      className="w-full bg-[#31572c] text-white shadow-md"
+      className={`w-full ${bgClass} text-white shadow-md transition-colors duration-300 ease-in-out`}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-center gap-4 px-6 sm:gap-8">
         {NAV_ITEMS.map(({ label, to, end }) => (
