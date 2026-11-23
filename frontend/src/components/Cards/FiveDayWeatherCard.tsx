@@ -6,7 +6,7 @@ export type WeatherCondition =
   | 'windy'
   | 'stormy'
 
-export interface DailyWeatherCardProps {
+export interface FiveDayWeatherCardProps {
   dateLabel: string
   condition: WeatherCondition
   conditionLabel: string
@@ -165,19 +165,19 @@ function WeatherIcon({
   }
 }
 
-export default function DailyWeatherCard({
+export default function FiveDayWeatherCard({
   dateLabel,
   condition,
   conditionLabel,
   dayTemp,
   nightTemp,
   iconSrc,
-}: DailyWeatherCardProps) {
+}: FiveDayWeatherCardProps) {
   return (
     <article className="flex cursor-pointer flex-col items-center justify-between gap-4 rounded-xl bg-[#023e8a]/85 px-4 py-6 text-white shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-1 hover:bg-[#023e8a]/95 hover:shadow-lg">
-      <h2 className="text-sm font-semibold tracking-wide text-white/95 sm:text-base">
+      <h3 className="text-sm font-semibold tracking-wide text-white/95 sm:text-base">
         {dateLabel}
-      </h2>
+      </h3>
 
       <div className="flex flex-col items-center gap-1">
         <WeatherIcon
