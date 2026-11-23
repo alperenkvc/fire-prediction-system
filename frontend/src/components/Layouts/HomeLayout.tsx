@@ -3,12 +3,12 @@ import Navbar from './Navbar'
 
 export default function HomeLayout() {
   return (
-    <div className="flex min-h-screen flex-col">
-      <header>
+    <div className="flex h-screen flex-col overflow-hidden">
+      <header className="shrink-0">
         <Navbar />
       </header>
 
-      <div className="flex-1">
+      <div className="flex flex-1 flex-col overflow-y-auto">
         <Outlet />
       </div>
 
