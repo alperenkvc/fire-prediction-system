@@ -1,5 +1,7 @@
 import type { ClickedCoordinate } from '../Canvas/MapCanvas'
 import type { RiskClass, StaticRiskResponse } from '../../services/RiskService'
+import type { FireSpreadFeatureProperties } from '../../services/SimulationService'
+import type { OptimalRouteFeatureProperties } from '../../services/RouteService'
 
 const RISK_BADGE_STYLES: Record<
   RiskClass,
@@ -16,7 +18,11 @@ export interface LeftSidePanelCardProps {
   selectedPoint: ClickedCoordinate | null
   regionName: string | null
   riskData: StaticRiskResponse | null
+  spreadSummary?: FireSpreadFeatureProperties | null
+  routeSummary?: OptimalRouteFeatureProperties | null
   isLoading: boolean
+  isSpreadLoading?: boolean
+  isRouteLoading?: boolean
   error: string | null
   cooldownSeconds: number
   routeCooldownSeconds: number
@@ -31,7 +37,11 @@ export default function LeftSidePanelCard({
   selectedPoint,
   regionName,
   riskData,
+  spreadSummary,
+  routeSummary,
   isLoading,
+  isSpreadLoading = false,
+  isRouteLoading = false,
   error,
   cooldownSeconds,
   routeCooldownSeconds,
@@ -120,24 +130,54 @@ export default function LeftSidePanelCard({
 
             <button
               type="button"
-              disabled={areSecondaryActionsDisabled}
+              disabled={areSecondaryActionsDisabled || isSpreadLoading}
               onClick={onSpreadSimulation}
               className="w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition-all duration-200 hover:border-[#dc2f02]/50 hover:bg-[#dc2f02]/5 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
             >
-              Yayılım Simülasyonu
+              {isSpreadLoading ? 'Simülasyon Yükleniyor...' : 'Yayılım Simülasyonu'}
             </button>
 
             <button
               type="button"
-              disabled={areSecondaryActionsDisabled || routeCooldownSeconds > 0}
+              disabled={
+                areSecondaryActionsDisabled ||
+                isRouteLoading ||
+                routeCooldownSeconds > 0
+              }
               onClick={onOptimalRoute}
               className="w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition-all duration-200 hover:border-[#dc2f02]/50 hover:bg-[#dc2f02]/5 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
             >
-              {routeCooldownSeconds > 0
-                ? `Optimum Müdahale Rotası (${routeCooldownSeconds}s)`
-                : 'Optimum Müdahale Rotası'}
+              {isRouteLoading
+                ? 'Rota Hesaplanıyor...'
+                : routeCooldownSeconds > 0
+                  ? `Optimum Müdahale Rotası (${routeCooldownSeconds}s)`
+                  : 'Optimum Müdahale Rotası'}
             </button>
           </div>
+
+          {(spreadSummary || routeSummary) && (
+            <div className="flex flex-col gap-2 border-t border-slate-100 pt-3 text-xs">
+              {spreadSummary && (
+                <div className="rounded-lg bg-orange-50 px-3 py-2 text-orange-900">
+                  <p className="font-semibold">
+                    Yayılım ({spreadSummary.label})
+                  </p>
+                  <p className="mt-0.5 text-orange-800/80">
+                    Tahmini alan: <strong>{spreadSummary.estimatedAreaHa} ha</strong> · Rüzgar: {spreadSummary.windSpeedKmh} km/s
+                  </p>
+                </div>
+              )}
+
+              {routeSummary && (
+                <div className="rounded-lg bg-sky-50 px-3 py-2 text-sky-900">
+                  <p className="font-semibold">{routeSummary.stationName}</p>
+                  <p className="mt-0.5 text-sky-800/80">
+                    Mesafe: <strong>{routeSummary.distanceKm} km</strong> · Tahmini süre: <strong>{routeSummary.estimatedMinutes} dk</strong>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </aside>

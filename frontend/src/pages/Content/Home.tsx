@@ -36,6 +36,8 @@ export default function Home() {
   const [riskData, setRiskData] = useState<StaticRiskResponse | null>(null)
   const [hasCalculatedRisk, setHasCalculatedRisk] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isSpreadLoading, setIsSpreadLoading] = useState(false)
+  const [isRouteLoading, setIsRouteLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSpreadModalOpen, setIsSpreadModalOpen] = useState(false)
   const [selectedSpreadPeriod, setSelectedSpreadPeriod] =
@@ -153,6 +155,7 @@ export default function Home() {
       !selectedPoint ||
       !selectedCoordKey ||
       !hasCalculatedRisk ||
+      isRouteLoading ||
       routeCooldownSeconds > 0
     ) {
       return
@@ -160,6 +163,8 @@ export default function Home() {
 
     const currentTime = Date.now()
     setNow(currentTime)
+    setIsRouteLoading(true)
+    setError(null)
     setRouteCooldownEndsByCoord((prev) => ({
       ...prev,
       [selectedCoordKey]: currentTime + ROUTE_COOLDOWN_MS,
@@ -173,14 +178,18 @@ export default function Home() {
       setOptimalRouteGeoJson(routeGeoJson)
     } catch {
       setError('Optimum müdahale rotası oluşturulamadı.')
+    } finally {
+      setIsRouteLoading(false)
     }
   }
 
   async function handleSelectSpreadPeriod(hours: SpreadPeriodHours) {
-    if (!selectedPoint || spreadCooldownSeconds > 0) return
+    if (!selectedPoint || isSpreadLoading || spreadCooldownSeconds > 0) return
 
     const currentTime = Date.now()
     setNow(currentTime)
+    setIsSpreadLoading(true)
+    setError(null)
     setSelectedSpreadPeriod(hours)
     setSpreadCooldownEnd(currentTime + SPREAD_COOLDOWN_MS)
 
@@ -193,12 +202,16 @@ export default function Home() {
       setSpreadGeoJson(geoJson)
     } catch {
       setError('Yayılım simülasyonu oluşturulamadı.')
+    } finally {
+      setIsSpreadLoading(false)
     }
   }
 
   const regionName = selectedPoint
     ? getRegionNameByCoordinates(selectedPoint.lat)
     : null
+  const spreadSummary = spreadGeoJson?.features[0]?.properties ?? null
+  const routeSummary = optimalRouteGeoJson?.features[0]?.properties ?? null
 
   return (
     <main className="relative min-h-0 w-full flex-1 overflow-hidden">
@@ -214,7 +227,11 @@ export default function Home() {
         selectedPoint={selectedPoint}
         regionName={regionName}
         riskData={riskData}
+        spreadSummary={spreadSummary}
+        routeSummary={routeSummary}
         isLoading={isLoading}
+        isSpreadLoading={isSpreadLoading}
+        isRouteLoading={isRouteLoading}
         error={error}
         cooldownSeconds={cooldownSeconds}
         routeCooldownSeconds={routeCooldownSeconds}
