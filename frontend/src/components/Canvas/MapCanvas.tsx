@@ -434,6 +434,32 @@ export default function MapCanvas({
         )}
       </Map>
 
+      <div
+        aria-label="Harita göstergesi"
+        className="pointer-events-none absolute top-4 right-4 z-10 hidden flex-col gap-1.5 rounded-xl border border-slate-200 bg-white/90 px-3.5 py-2.5 text-xs text-slate-700 shadow-md backdrop-blur-sm sm:flex"
+      >
+        <div className="flex items-center gap-2">
+          <span className="h-0.5 w-4 border-t-2 border-dashed border-[#dc2f02]" />
+          <span>Adana Sınırı</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-3 w-3 rounded-full border border-white bg-slate-800 shadow-xs" />
+          <span>İtfaiye İstasyonu</span>
+        </div>
+        {spreadGeoJson && (
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-xs border border-[#c2410c] bg-[#f97316]/45" />
+            <span>Yangın Yayılımı (1–3s)</span>
+          </div>
+        )}
+        {optimalRouteGeoJson && (
+          <div className="flex items-center gap-2">
+            <span className="h-1 w-4 rounded-full bg-[#0284c7]" />
+            <span>Optimum Rota</span>
+          </div>
+        )}
+      </div>
+
       {mapError && (
         <div
           role="alert"
