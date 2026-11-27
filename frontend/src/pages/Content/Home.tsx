@@ -1,38 +1,132 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import MapCanvas, {
   type ClickedCoordinate,
 } from '../../components/Canvas/MapCanvas'
+import LeftSidePanelCard from '../../components/Cards/LeftSidePanelCard'
+import SpreadPeriodModal, {
+  type SpreadPeriodHours,
+} from '../../components/Modals/SpreadPeriodModal'
 import {
   fetchStaticRiskByCoordinates,
-  type RiskClass,
+  getRegionNameByCoordinates,
   type StaticRiskResponse,
 } from '../../services/RiskService'
+import {
+  fetchFireSpreadSimulation,
+  type FireSpreadFeatureCollection,
+} from '../../services/SimulationService'
+import {
+  fetchOptimalRoute,
+  MOCK_FIRE_STATIONS,
+  type OptimalRouteFeatureCollection,
+} from '../../services/RouteService'
 
-const RISK_BADGE_STYLES: Record<RiskClass, { label: string; className: string }> = {
-  VERY_LOW: { label: 'Çok Düşük', className: 'bg-emerald-100 text-emerald-800' },
-  LOW: { label: 'Düşük', className: 'bg-lime-100 text-lime-800' },
-  MODERATE: { label: 'Orta', className: 'bg-amber-100 text-amber-800' },
-  HIGH: { label: 'Yüksek', className: 'bg-orange-100 text-orange-800' },
-  CRITICAL: { label: 'Kritik', className: 'bg-red-100 text-red-800' },
+const RISK_COOLDOWN_MS = 60_000
+const ROUTE_COOLDOWN_MS = 60_000
+const SPREAD_COOLDOWN_MS = 10_000
+
+function getCoordinateKey(point: ClickedCoordinate): string {
+  return `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`
 }
 
 export default function Home() {
-  const [selectedPoint, setSelectedPoint] = useState<ClickedCoordinate | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<ClickedCoordinate | null>(
+    null,
+  )
   const [riskData, setRiskData] = useState<StaticRiskResponse | null>(null)
+  const [hasCalculatedRisk, setHasCalculatedRisk] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isSpreadModalOpen, setIsSpreadModalOpen] = useState(false)
+  const [selectedSpreadPeriod, setSelectedSpreadPeriod] =
+    useState<SpreadPeriodHours | null>(null)
+  const [spreadGeoJson, setSpreadGeoJson] =
+    useState<FireSpreadFeatureCollection | null>(null)
+  const [optimalRouteGeoJson, setOptimalRouteGeoJson] =
+    useState<OptimalRouteFeatureCollection | null>(null)
+  const [spreadCooldownEnd, setSpreadCooldownEnd] = useState(0)
+  const [cooldownEndsByCoord, setCooldownEndsByCoord] = useState<
+    Record<string, number>
+  >({})
+  const [routeCooldownEndsByCoord, setRouteCooldownEndsByCoord] = useState<
+    Record<string, number>
+  >({})
+  const [now, setNow] = useState(() => Date.now())
 
-  async function handlePointSelect(point: ClickedCoordinate) {
+  const selectedCoordKey = selectedPoint
+    ? getCoordinateKey(selectedPoint)
+    : null
+  const activeCooldownEnd = selectedCoordKey
+    ? (cooldownEndsByCoord[selectedCoordKey] ?? 0)
+    : 0
+  const activeRouteCooldownEnd = selectedCoordKey
+    ? (routeCooldownEndsByCoord[selectedCoordKey] ?? 0)
+    : 0
+  const cooldownSeconds =
+    activeCooldownEnd > now
+      ? Math.ceil((activeCooldownEnd - now) / 1000)
+      : 0
+  const routeCooldownSeconds =
+    activeRouteCooldownEnd > now
+      ? Math.ceil((activeRouteCooldownEnd - now) / 1000)
+      : 0
+  const spreadCooldownSeconds =
+    spreadCooldownEnd > now
+      ? Math.ceil((spreadCooldownEnd - now) / 1000)
+      : 0
+
+  useEffect(() => {
+    if (
+      cooldownSeconds <= 0 &&
+      routeCooldownSeconds <= 0 &&
+      spreadCooldownSeconds <= 0
+    ) {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      setNow(Date.now())
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [cooldownSeconds, routeCooldownSeconds, spreadCooldownSeconds])
+
+  function handlePointSelect(point: ClickedCoordinate) {
     setSelectedPoint(point)
+    setRiskData(null)
+    setHasCalculatedRisk(false)
+    setError(null)
+    setIsSpreadModalOpen(false)
+    setSelectedSpreadPeriod(null)
+    setSpreadGeoJson(null)
+    setOptimalRouteGeoJson(null)
+    setNow(Date.now())
+  }
+
+  async function handleCalculateRisk() {
+    if (!selectedPoint || !selectedCoordKey || isLoading || cooldownSeconds > 0)
+      return
+
+    const currentTime = Date.now()
+    setNow(currentTime)
     setIsLoading(true)
     setError(null)
+    setCooldownEndsByCoord((prev) => ({
+      ...prev,
+      [selectedCoordKey]: currentTime + RISK_COOLDOWN_MS,
+    }))
 
     try {
-      const result = await fetchStaticRiskByCoordinates(point.lat, point.lng)
+      const result = await fetchStaticRiskByCoordinates(
+        selectedPoint.lat,
+        selectedPoint.lng,
+      )
       setRiskData(result)
+      setHasCalculatedRisk(true)
     } catch {
       setError('Seçilen bölgenin risk skoru alınamadı.')
       setRiskData(null)
+      setHasCalculatedRisk(false)
     } finally {
       setIsLoading(false)
     }
@@ -41,71 +135,103 @@ export default function Home() {
   function handleClearSelection() {
     setSelectedPoint(null)
     setRiskData(null)
+    setHasCalculatedRisk(false)
     setError(null)
+    setIsSpreadModalOpen(false)
+    setSelectedSpreadPeriod(null)
+    setSpreadGeoJson(null)
+    setOptimalRouteGeoJson(null)
   }
+
+  function handleOpenSpreadSimulation() {
+    if (!hasCalculatedRisk) return
+    setIsSpreadModalOpen(true)
+  }
+
+  async function handleOptimalRoute() {
+    if (
+      !selectedPoint ||
+      !selectedCoordKey ||
+      !hasCalculatedRisk ||
+      routeCooldownSeconds > 0
+    ) {
+      return
+    }
+
+    const currentTime = Date.now()
+    setNow(currentTime)
+    setRouteCooldownEndsByCoord((prev) => ({
+      ...prev,
+      [selectedCoordKey]: currentTime + ROUTE_COOLDOWN_MS,
+    }))
+
+    try {
+      const routeGeoJson = await fetchOptimalRoute(
+        selectedPoint.lat,
+        selectedPoint.lng,
+      )
+      setOptimalRouteGeoJson(routeGeoJson)
+    } catch {
+      setError('Optimum müdahale rotası oluşturulamadı.')
+    }
+  }
+
+  async function handleSelectSpreadPeriod(hours: SpreadPeriodHours) {
+    if (!selectedPoint || spreadCooldownSeconds > 0) return
+
+    const currentTime = Date.now()
+    setNow(currentTime)
+    setSelectedSpreadPeriod(hours)
+    setSpreadCooldownEnd(currentTime + SPREAD_COOLDOWN_MS)
+
+    try {
+      const geoJson = await fetchFireSpreadSimulation(
+        selectedPoint.lat,
+        selectedPoint.lng,
+        hours,
+      )
+      setSpreadGeoJson(geoJson)
+    } catch {
+      setError('Yayılım simülasyonu oluşturulamadı.')
+    }
+  }
+
+  const regionName = selectedPoint
+    ? getRegionNameByCoordinates(selectedPoint.lat)
+    : null
 
   return (
     <main className="relative min-h-0 w-full flex-1 overflow-hidden">
       <MapCanvas
         selectedPoint={selectedPoint}
+        fireStations={MOCK_FIRE_STATIONS}
+        spreadGeoJson={spreadGeoJson}
+        optimalRouteGeoJson={optimalRouteGeoJson}
         onPointSelect={handlePointSelect}
       />
 
-      {/* Google Maps-style floating inspector card */}
-      {selectedPoint && (
-        <aside
-          aria-live="polite"
-          className="absolute top-4 left-4 z-10 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur-sm"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">
-                Bölge Statik Risk Analizi
-              </h2>
-              <p className="mt-0.5 font-mono text-xs text-slate-500">
-                {selectedPoint.lat.toFixed(5)}° K, {selectedPoint.lng.toFixed(5)}° D
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleClearSelection}
-              aria-label="Kapat"
-              className="cursor-pointer rounded-md px-2 py-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            >
-              ✕
-            </button>
-          </div>
+      <LeftSidePanelCard
+        selectedPoint={selectedPoint}
+        regionName={regionName}
+        riskData={riskData}
+        isLoading={isLoading}
+        error={error}
+        cooldownSeconds={cooldownSeconds}
+        routeCooldownSeconds={routeCooldownSeconds}
+        hasCalculatedRisk={hasCalculatedRisk}
+        onCalculateRisk={handleCalculateRisk}
+        onSpreadSimulation={handleOpenSpreadSimulation}
+        onOptimalRoute={handleOptimalRoute}
+        onClearSelection={handleClearSelection}
+      />
 
-          <div className="mt-3 border-t border-slate-100 pt-3">
-            {isLoading && (
-              <p className="text-sm text-slate-500">Risk skoru sorgulanıyor...</p>
-            )}
-
-            {error && <p className="text-sm text-red-600">{error}</p>}
-
-            {!isLoading && riskData && (
-              <div>
-                <p className="text-xs font-medium text-slate-500">
-                  {riskData.regionName}
-                </p>
-                <div className="mt-2 flex items-baseline justify-between">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-slate-900">
-                      {riskData.staticRiskScore}
-                    </span>
-                    <span className="text-sm text-slate-500">/ 100</span>
-                  </div>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${RISK_BADGE_STYLES[riskData.riskClass].className}`}
-                  >
-                    {RISK_BADGE_STYLES[riskData.riskClass].label}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </aside>
-      )}
+      <SpreadPeriodModal
+        isOpen={isSpreadModalOpen}
+        selectedPeriod={selectedSpreadPeriod}
+        cooldownSeconds={spreadCooldownSeconds}
+        onSelectPeriod={handleSelectSpreadPeriod}
+        onClose={() => setIsSpreadModalOpen(false)}
+      />
     </main>
   )
 }

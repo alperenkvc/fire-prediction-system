@@ -16,6 +16,10 @@ function getRiskClass(score: number): RiskClass {
   return 'CRITICAL'
 }
 
+export function getRegionNameByCoordinates(lat: number): string {
+  return lat > 37.35 ? 'Kuzey Adana Orman Bölgesi' : 'Çukurova / Merkez Havzası'
+}
+
 export async function fetchStaticRiskByCoordinates(
   lat: number,
   lng: number,
@@ -35,7 +39,7 @@ export async function fetchStaticRiskByCoordinates(
   return {
     latitude: lat,
     longitude: lng,
-    regionName: lat > 37.35 ? 'Kuzey Adana Orman Bölgesi' : 'Çukurova / Merkez Havzası',
+    regionName: getRegionNameByCoordinates(lat),
     staticRiskScore: rawScore,
     riskClass: getRiskClass(rawScore),
   }
