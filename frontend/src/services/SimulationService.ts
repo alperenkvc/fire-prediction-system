@@ -74,10 +74,10 @@ const SPREAD_DIMENSIONS_KM: Record<
 export async function fetchFireSpreadSimulation(
   lat: number,
   lng: number,
-  maxHours: SpreadPeriodHours,
+  hours: SpreadPeriodHours,
 ): Promise<FireSpreadFeatureCollection> {
   // TODO: Once Spring Boot + PostGIS spread endpoint is ready, replace mock block with:
-  // const res = await fetch(`/api/v1/simulation/spread?lat=${lat}&lng=${lng}&hours=${maxHours}`)
+  // const res = await fetch(`/api/v1/simulation/spread?lat=${lat}&lng=${lng}&hours=${hours}`)
   // if (!res.ok) throw new Error('Yayılım simülasyonu alınamadı.')
   // return res.json()
 
@@ -87,41 +87,34 @@ export async function fetchFireSpreadSimulation(
   const windDirectionDeg = 45
   const windSpeedKmh = 18
 
-  // Order largest -> smallest so outer rings render underneath inner rings
-  const periods: SpreadPeriodHours[] = ([3, 2, 1] as SpreadPeriodHours[]).filter(
-    (h) => h <= maxHours,
-  )
+  const { semiMajorKm, semiMinorKm } = SPREAD_DIMENSIONS_KM[hours]
+  const areaHa = Math.round(Math.PI * semiMajorKm * semiMinorKm * 100)
 
-  const features: FireSpreadFeature[] = periods.map((hours) => {
-    const { semiMajorKm, semiMinorKm } = SPREAD_DIMENSIONS_KM[hours]
-    const areaHa = Math.round(Math.PI * semiMajorKm * semiMinorKm * 100)
-
-    return {
-      type: 'Feature',
-      properties: {
-        hours,
-        label: `${hours} Saat`,
-        estimatedAreaHa: areaHa,
-        windDirectionDeg,
-        windSpeedKmh,
-      },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [
-          buildSpreadEllipsePolygon(
-            lat,
-            lng,
-            semiMajorKm,
-            semiMinorKm,
-            windDirectionDeg,
-          ),
-        ],
-      },
-    }
-  })
+  const feature: FireSpreadFeature = {
+    type: 'Feature',
+    properties: {
+      hours,
+      label: `${hours} Saat`,
+      estimatedAreaHa: areaHa,
+      windDirectionDeg,
+      windSpeedKmh,
+    },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [
+        buildSpreadEllipsePolygon(
+          lat,
+          lng,
+          semiMajorKm,
+          semiMinorKm,
+          windDirectionDeg,
+        ),
+      ],
+    },
+  }
 
   return {
     type: 'FeatureCollection',
-    features,
+    features: [feature],
   }
 }

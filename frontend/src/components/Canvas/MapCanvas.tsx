@@ -131,17 +131,15 @@ export default function MapCanvas({
     const prevLargest = getLargestFeature(fromCollection)
     const nextLargest = getLargestFeature(spreadGeoJson)
 
-    // Pair every growing/persisting feature and every shrinking outer feature
     type TransitionSpec = {
       feature: FireSpreadFeature
       fromRing: [number, number][]
       toRing: [number, number][]
-      keepAtEnd: boolean
     }
 
     const transitions: TransitionSpec[] = []
 
-    // Target features (persist or grow from previous largest ring / ignition point)
+    // Target features (persist if already displayed, or grow from previous largest ring / ignition point)
     for (const targetFeature of spreadGeoJson.features) {
       const toRing = targetFeature.geometry.coordinates[0]
       const matchingPrev = fromByHours[targetFeature.properties.hours]
@@ -154,7 +152,6 @@ export default function MapCanvas({
         feature: targetFeature,
         fromRing,
         toRing,
-        keepAtEnd: true,
       })
     }
 
@@ -167,7 +164,6 @@ export default function MapCanvas({
             feature: prevFeature,
             fromRing: prevFeature.geometry.coordinates[0],
             toRing: shrinkTargetRing,
-            keepAtEnd: false,
           })
         }
       }

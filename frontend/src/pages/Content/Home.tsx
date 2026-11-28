@@ -13,6 +13,7 @@ import {
 } from '../../services/RiskService'
 import {
   fetchFireSpreadSimulation,
+  type FireSpreadFeature,
   type FireSpreadFeatureCollection,
 } from '../../services/SimulationService'
 import {
@@ -42,6 +43,9 @@ export default function Home() {
   const [isSpreadModalOpen, setIsSpreadModalOpen] = useState(false)
   const [selectedSpreadPeriod, setSelectedSpreadPeriod] =
     useState<SpreadPeriodHours | null>(null)
+  const [fetchedSpreadByHours, setFetchedSpreadByHours] = useState<
+    Partial<Record<SpreadPeriodHours, FireSpreadFeature>>
+  >({})
   const [spreadGeoJson, setSpreadGeoJson] =
     useState<FireSpreadFeatureCollection | null>(null)
   const [optimalRouteGeoJson, setOptimalRouteGeoJson] =
@@ -100,6 +104,7 @@ export default function Home() {
     setError(null)
     setIsSpreadModalOpen(false)
     setSelectedSpreadPeriod(null)
+    setFetchedSpreadByHours({})
     setSpreadGeoJson(null)
     setOptimalRouteGeoJson(null)
     setNow(Date.now())
@@ -141,6 +146,7 @@ export default function Home() {
     setError(null)
     setIsSpreadModalOpen(false)
     setSelectedSpreadPeriod(null)
+    setFetchedSpreadByHours({})
     setSpreadGeoJson(null)
     setOptimalRouteGeoJson(null)
   }
@@ -148,6 +154,11 @@ export default function Home() {
   function handleOpenSpreadSimulation() {
     if (!hasCalculatedRisk) return
     setIsSpreadModalOpen(true)
+  }
+
+  function handleCloseSpreadModal() {
+    setIsSpreadModalOpen(false)
+    setFetchedSpreadByHours({})
   }
 
   async function handleOptimalRoute() {
@@ -194,12 +205,35 @@ export default function Home() {
     setSpreadCooldownEnd(currentTime + SPREAD_COOLDOWN_MS)
 
     try {
-      const geoJson = await fetchFireSpreadSimulation(
-        selectedPoint.lat,
-        selectedPoint.lng,
-        hours,
-      )
-      setSpreadGeoJson(geoJson)
+      let nextFeature = fetchedSpreadByHours[hours]
+      if (!nextFeature) {
+        const geoJson = await fetchFireSpreadSimulation(
+          selectedPoint.lat,
+          selectedPoint.lng,
+          hours,
+        )
+        nextFeature = geoJson.features[0]
+      }
+
+      const updatedCache: Partial<
+        Record<SpreadPeriodHours, FireSpreadFeature>
+      > = {
+        ...fetchedSpreadByHours,
+        ...(nextFeature ? { [hours]: nextFeature } : {}),
+      }
+      setFetchedSpreadByHours(updatedCache)
+
+      // Display only periods the user actually selected in this prompt session up to `hours`
+      // Ordered largest -> smallest so outer ellipses render underneath inner ellipses
+      const visibleFeatures = ([3, 2, 1] as SpreadPeriodHours[])
+        .filter((h) => h <= hours)
+        .map((h) => updatedCache[h])
+        .filter((f): f is FireSpreadFeature => Boolean(f))
+
+      setSpreadGeoJson({
+        type: 'FeatureCollection',
+        features: visibleFeatures,
+      })
     } catch {
       setError('Yayılım simülasyonu oluşturulamadı.')
     } finally {
@@ -247,7 +281,7 @@ export default function Home() {
         selectedPeriod={selectedSpreadPeriod}
         cooldownSeconds={spreadCooldownSeconds}
         onSelectPeriod={handleSelectSpreadPeriod}
-        onClose={() => setIsSpreadModalOpen(false)}
+        onClose={handleCloseSpreadModal}
       />
     </main>
   )
